@@ -2,6 +2,11 @@
 
 This project implements an invisible text watermarking scheme based on a border-hash method. It allows embedding text messages into images and later extracting them.
 
+## Project Structure
+
+- `src/` - Contains the source code files
+- `examples/` - Contains example images for testing
+
 ## How It Works
 
 ### Embedding Process
@@ -42,7 +47,7 @@ This project implements an invisible text watermarking scheme based on a border-
 ### Embedding a Message
 
 ```
-python main.py --mode embed --input original.jpg --output watermarked.png --message "Your secret message"
+python src/main.py --mode embed --input examples/input.jpg --output examples/watermarked.png --message "Your secret message"
 ```
 
 **Note**: We strongly recommend using PNG format for the output file to ensure watermark integrity. The program will automatically convert the output to PNG format if another format is specified.
@@ -50,7 +55,7 @@ python main.py --mode embed --input original.jpg --output watermarked.png --mess
 ### Extracting a Message
 
 ```
-python main.py --mode extract --input watermarked.png
+python src/main.py --mode extract --input examples/watermarked.png
 ```
 
 ## Requirements
@@ -73,3 +78,7 @@ python main.py --mode extract --input watermarked.png
 - If extraction fails, ensure you're using the exact same watermarked image that was generated (no resizing, recompression, etc.)
 - The program will display debug information about message lengths during embedding and extraction
 - If the extracted text is corrupted, it means the watermark has been damaged, possibly by image compression
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
