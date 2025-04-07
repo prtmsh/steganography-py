@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import hashlib
 import random
+import struct
 
 def compute_border_hash(image):
     """
@@ -23,7 +24,7 @@ def compute_border_hash(image):
     
     # Concatenate all border pixels
     border_pixels = np.concatenate((top_row.flatten(), bottom_row.flatten(), 
-                                    left_col.flatten(), right_col.flatten()))
+                                   left_col.flatten(), right_col.flatten()))
     
     # Compute SHA-256 hash
     hash_obj = hashlib.sha256(border_pixels.tobytes())
@@ -58,52 +59,6 @@ def generate_pseudo_random_positions(hash_value, height, width, num_bits):
     random.shuffle(interior_pixels)
     return interior_pixels[:num_bits]
 
-def text_to_bits(text):
-    """
-    Convert text to a bit string using UTF-8 encoding.
-    
-    Args:
-        text: The input text message
-        
-    Returns:
-        A list of bits (0s and 1s)
-    """
-    # Convert text to bytes using UTF-8
-    byte_array = text.encode('utf-8')
-    
-    # Convert each byte to bits
-    bit_array = []
-    for byte in byte_array:
-        for i in range(8):
-            bit_array.append((byte >> i) & 1)
-    
-    return bit_array
-
-def bits_to_text(bits):
-    """
-    Convert a bit array back to text using UTF-8 decoding.
-    
-    Args:
-        bits: List of bits (0s and 1s)
-        
-    Returns:
-        The decoded text message
-    """
-    # Ensure the length is a multiple of 8
-    if len(bits) % 8 != 0:
-        bits = bits + [0] * (8 - (len(bits) % 8))
-    
-    # Convert bits to bytes
-    byte_array = bytearray()
-    for i in range(0, len(bits), 8):
-        byte = 0
-        for j in range(8):
-            byte |= bits[i+j] << j
-        byte_array.append(byte)
-    
-    # Decode bytes to text
-    return byte_array.decode('utf-8', errors='replace')
-
 def embed_message(input_path, output_path, message):
     """
     Embed a text message into an image using the border-hash method.
@@ -112,6 +67,9 @@ def embed_message(input_path, output_path, message):
         input_path: Path to the input image
         output_path: Path to save the watermarked image
         message: The text message to embed
+        
+    Returns:
+        Number of bits in the embedded message
     """
     # Load the image
     image = cv2.imread(input_path)
@@ -123,33 +81,44 @@ def embed_message(input_path, output_path, message):
     # Compute hash from border pixels
     border_hash = compute_border_hash(image)
     
-    # Convert message to bits
-    message_bits = text_to_bits(message)
-    message_length = len(message_bits)
+    # Convert message to bytes
+    message_bytes = message.encode('utf-8')
+    message_length = len(message_bytes)
     
-    # Create 16-bit header for message length
-    header_bits = []
-    for i in range(16):
-        header_bits.append((message_length >> i) & 1)
+    # Ensure message length isn't too large for 16-bit encoding
+    if message_length > 65535:
+        raise ValueError("Message too large - maximum size is 65535 bytes")
+    
+    # We'll encode the length as a fixed 2-byte (16-bit) unsigned integer
+    length_bytes = message_length.to_bytes(2, byteorder='big')
     
     # Combine header and message
-    all_bits = header_bits + message_bits
-    total_bits = len(all_bits)
+    data_to_hide = length_bytes + message_bytes
+    total_bits = len(data_to_hide) * 8
     
     # Generate embedding positions
     positions = generate_pseudo_random_positions(border_hash, height, width, total_bits)
     
     # Embed bits into LSB of blue channel
-    for i, (y, x) in enumerate(positions):
-        if i < total_bits:
+    bit_index = 0
+    for byte in data_to_hide:
+        for bit_pos in range(8):  # Process each bit in the byte
+            y, x = positions[bit_index]
             # Clear the LSB of the blue channel
             image[y, x, 0] = image[y, x, 0] & 0xFE
-            # Set the LSB according to the bit
-            image[y, x, 0] = image[y, x, 0] | all_bits[i]
+            # Set the LSB according to the current bit (MSB first)
+            bit = (byte >> (7 - bit_pos)) & 1
+            image[y, x, 0] = image[y, x, 0] | bit
+            bit_index += 1
     
-    # Save the watermarked image
-    cv2.imwrite(output_path, image)
-    return len(message_bits)
+    # Save the watermarked image using PNG format to avoid compression artifacts
+    # Make sure the filename ends with .png regardless of input
+    if not output_path.lower().endswith('.png'):
+        output_path = output_path.rsplit('.', 1)[0] + '.png'
+    cv2.imwrite(output_path, image, [cv2.IMWRITE_PNG_COMPRESSION, 0])
+    
+    print(f"DEBUG: Embedded message length: {message_length} bytes")
+    return len(message_bytes) * 8
 
 def extract_message(input_path):
     """
@@ -171,33 +140,59 @@ def extract_message(input_path):
     # Compute hash from border pixels
     border_hash = compute_border_hash(image)
     
-    # Initially, we need at least 16 positions for the header
-    positions = generate_pseudo_random_positions(border_hash, height, width, 16)
+    # First, extract just the 2-byte length header
+    header_bits = 16  # 2 bytes = 16 bits
+    positions = generate_pseudo_random_positions(border_hash, height, width, header_bits)
     
-    # Extract header bits
-    header_bits = []
-    for y, x in positions[:16]:
-        # Get LSB of blue channel
-        bit = image[y, x, 0] & 1
-        header_bits.append(bit)
+    # Read the 16 bits for the length
+    length_bits = []
+    for i in range(16):
+        y, x = positions[i]
+        bit = image[y, x, 0] & 1  # Get LSB
+        length_bits.append(bit)
+
+    # Convert bits to bytes (2 bytes)
+    length_bytes = bytearray(2)
+    for i in range(2):
+        for j in range(8):
+            # MSB first
+            length_bytes[i] = (length_bytes[i] << 1) | length_bits[i*8 + j]
     
-    # Calculate message length from header
-    message_length = 0
-    for i, bit in enumerate(header_bits):
-        message_length |= bit << i
+    # Extract the message length from the header bytes
+    message_length = int.from_bytes(length_bytes, byteorder='big')
     
-    # Generate more positions if needed for the full message
-    if len(positions) < 16 + message_length:
-        positions = generate_pseudo_random_positions(border_hash, height, width, 16 + message_length)
+    print(f"DEBUG: Detected message length: {message_length} bytes")
+    
+    # Safety check to prevent excessive memory usage
+    if message_length > 65535 or message_length <= 0:
+        return f"Error: Invalid message length detected: {message_length}"
+    
+    # Generate positions for the full message (header + message)
+    total_bits = 16 + (message_length * 8)
+    positions = generate_pseudo_random_positions(border_hash, height, width, total_bits)
     
     # Extract message bits
     message_bits = []
-    for y, x in positions[16:16+message_length]:
-        # Get LSB of blue channel
+    for i in range(16, total_bits):
+        y, x = positions[i]
         bit = image[y, x, 0] & 1
         message_bits.append(bit)
     
-    # Convert bits back to text
-    extracted_message = bits_to_text(message_bits)
+    # Convert bits to bytes
+    message_bytes = bytearray(message_length)
+    for i in range(message_length):
+        byte = 0
+        for j in range(8):
+            # Process 8 bits at a time, MSB first
+            if i*8 + j < len(message_bits):
+                byte = (byte << 1) | message_bits[i*8 + j]
+        message_bytes[i] = byte
     
-    return extracted_message
+    # Convert bytes to string
+    try:
+        message = message_bytes.decode('utf-8')
+        return message
+    except UnicodeDecodeError:
+        # If decoding fails, return a hex representation of the bytes for debugging
+        hex_data = ''.join(f'{b:02x}' for b in message_bytes)
+        return f"Error: Could not decode message as UTF-8. First 32 bytes in hex: {hex_data[:64]}..."
