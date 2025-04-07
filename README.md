@@ -78,7 +78,3 @@ python src/main.py --mode extract --input examples/watermarked.png
 - If extraction fails, ensure you're using the exact same watermarked image that was generated (no resizing, recompression, etc.)
 - The program will display debug information about message lengths during embedding and extraction
 - If the extracted text is corrupted, it means the watermark has been damaged, possibly by image compression
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
