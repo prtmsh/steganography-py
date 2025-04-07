@@ -28,7 +28,7 @@ This project implements an invisible text watermarking scheme based on a border-
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/steganography-py.git
+   git clone https://github.com/prtmsh/steganography-py.git
    cd steganography-py
    ```
 
@@ -42,13 +42,15 @@ This project implements an invisible text watermarking scheme based on a border-
 ### Embedding a Message
 
 ```
-python main.py --mode embed --input original.jpg --output watermarked.jpg --message "Your secret message"
+python main.py --mode embed --input original.jpg --output watermarked.png --message "Your secret message"
 ```
+
+**Note**: We strongly recommend using PNG format for the output file to ensure watermark integrity. The program will automatically convert the output to PNG format if another format is specified.
 
 ### Extracting a Message
 
 ```
-python main.py --mode extract --input watermarked.jpg
+python main.py --mode extract --input watermarked.png
 ```
 
 ## Requirements
@@ -61,9 +63,13 @@ python main.py --mode extract --input watermarked.jpg
 ## Limitations
 
 - The image must be large enough to accommodate the message.
+- Maximum message size is 65,535 bytes (approx. 65KB).
 - Modifications to the watermarked image (especially to the border) may prevent message recovery.
 - The message is encoded in the LSB of the blue channel, which may be vulnerable to certain image manipulations.
+- JPEG or other lossy compression formats will corrupt the watermark - always use PNG format.
 
-## License
+## Troubleshooting
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- If extraction fails, ensure you're using the exact same watermarked image that was generated (no resizing, recompression, etc.)
+- The program will display debug information about message lengths during embedding and extraction
+- If the extracted text is corrupted, it means the watermark has been damaged, possibly by image compression
