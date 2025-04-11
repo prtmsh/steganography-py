@@ -1,4 +1,3 @@
-# main.py - Updated with benchmarking display
 import argparse
 import os
 import sys
