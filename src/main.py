@@ -1,7 +1,16 @@
+# main.py - Updated with benchmarking display
 import argparse
 import os
 import sys
 from watermark import embed_message, extract_message
+
+def print_timing_info(timing):
+    """
+    Print timing information in the same format as the CUDA version.
+    """
+    print("Timing Information:")
+    print(f"  Process execution time: {timing.process_time:.2f} ms")
+    print(f"  Total execution time:   {timing.total_time:.2f} ms")
 
 def main():
     """
@@ -30,13 +39,15 @@ def main():
     
     try:
         if args.mode == 'embed':
-            bits_embedded = embed_message(args.input, args.output, args.message)
+            timing, bits_embedded = embed_message(args.input, args.output, args.message)
             print(f"Success: Message embedded into '{args.output}'")
             print(f"Message length: {len(args.message)} characters ({bits_embedded} bits)")
+            print_timing_info(timing)
             
         elif args.mode == 'extract':
-            message = extract_message(args.input)
+            message, timing = extract_message(args.input)
             print(f"Extracted message: {message}")
+            print_timing_info(timing)
     
     except Exception as e:
         print(f"Error: {e}")
