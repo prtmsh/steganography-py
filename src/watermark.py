@@ -1,4 +1,3 @@
-# watermark.py - Updated with benchmarking
 import cv2
 import numpy as np
 import hashlib
@@ -112,11 +111,11 @@ def embed_message(input_path, output_path, message):
     data_to_hide = length_bytes + message_bytes
     total_bits = len(data_to_hide) * 8
     
-    # Generate embedding positions
-    positions = generate_pseudo_random_positions(border_hash, height, width, total_bits)
-    
     # Start measuring process time (equivalent to GPU time in CUDA version)
     process_start = time.time()
+    
+    # Generate embedding positions
+    positions = generate_pseudo_random_positions(border_hash, height, width, total_bits)
     
     # Embed bits into LSB of blue channel
     bit_index = 0
@@ -175,12 +174,12 @@ def extract_message(input_path):
     # Compute hash from border pixels
     border_hash = compute_border_hash(image)
     
+    # Start measuring process time
+    process_start = time.time()
+    
     # First, extract just the 2-byte length header
     header_bits = 16  # 2 bytes = 16 bits
     positions = generate_pseudo_random_positions(border_hash, height, width, header_bits)
-    
-    # Start measuring process time
-    process_start = time.time()
     
     # Read the 16 bits for the length
     length_bits = []
